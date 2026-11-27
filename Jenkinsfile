@@ -26,6 +26,12 @@ pipeline {
             }
         }
 
+        stage('Install Dependencies') {
+            steps {
+                sh "npm install"
+            }
+        }
+
         stage('SonarQube Code Analysis') {
             steps {
                 withSonarQubeEnv('sonar-server') {
@@ -46,12 +52,6 @@ pipeline {
                         waitForQualityGate abortPipeline: true
                     }
                 }
-            }
-        }
-
-        stage('Install Dependencies') {
-            steps {
-                sh "npm install"
             }
         }
 
