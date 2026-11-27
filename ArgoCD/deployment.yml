@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: 
+  name: swigy-app
+#  namespace: default that is defined in the "~/.kube/admin.conf"
+  labels:
+    app: swigy-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: swigy-app
+  template:
+    metadata:
+      name: swigy-pod
+      labels:
+        app: swigy-app
+    spec:
+      containers:
+        terminationGracePeriodSeconds: 30  #Pod specification to give an application 30 seconds to shutdown gracefully before kubernetes forcibly terminates it. The main purpose is to prevent data loss, incimplete transaction, and interrupted requests during Pod termination.
+      - name: swigy-containers
+        image: SUNILSSAINI139/swigy-app:latest
+        imagePullPolicy: "Always" #imagepullpolicy in a Kubernetes container specification that defines when and how kubernetes should pull a container image from the container registry.
+        ports:
+          - containerPort: 3000
