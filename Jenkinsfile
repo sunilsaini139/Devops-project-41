@@ -1,80 +1,106 @@
-pipeline{
+pipeline {
     agent any
-    tools{
+
+    tools {
         jdk 'jdk17'
-        nodejs 'node20'
+        nodejs 'node20'   // Node.js 20 LTS
     }
+
     environment {
-        SCANNER_HOME=tool 'sonar-scanner'
+        SCANNER_HOME = tool 'sonar-scanner'
+        DOCKER_IMAGE = 'sunilssaini139/swiggy'
+        DOCKER_TAG   = 'latest'
     }
+
     stages {
-        stage('clean workspace'){
-            steps{
+        stage('Clean Workspace') {
+            steps {
                 cleanWs()
             }
         }
-        stage('Checkout from Git'){
-            steps{
-                git 'https://github.com/sunilsaini139/Devops-project-41.git'
+
+        stage('Checkout from Git') {
+            steps {
+                git branch: 'master', 
+                    url: 'https://github.com/sunilsaini139/Devops-project-41.git'
             }
         }
-        stage("Sonarqube Analysis "){
-            steps{
+
+        stage('SonarQube Code Analysis') {
+            steps {
                 withSonarQubeEnv('sonar-server') {
-                    sh ''' 
-                    $SCANNER_HOME/bin/sonar-scanner \
-                        -Dsonar.projectName=Swiggy \
-                        -Dsonar.projectKey=Swiggy 
-                    '''
+                    sh """
+                        $SCANNER_HOME/bin/sonar-scanner \
+                          -Dsonar.projectKey=Swiggy \
+                          -Dsonar.projectName=Swiggy \
+                          -Dsonar.sources=.
+                    """
                 }
             }
         }
-        stage("quality gate"){
-           steps {
+
+        stage('Quality Gate') {
+            steps {
                 script {
-                    waitForQualityGate abortPipeline: false, credentialsId: 'sonar-token' 
+                    timeout(time: 2, unit: 'MINUTES') {
+                        waitForQualityGate abortPipeline: true
+                    }
                 }
-            } 
+            }
         }
+
         stage('Install Dependencies') {
             steps {
                 sh "npm install"
             }
         }
-        stage('OWASP FS SCAN') {
+
+        stage('Trivy Filesystem Security Scan') {
             steps {
-                dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit', odcInstallation: 'DP-Check'
-                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                sh "trivy fs . --exit-code 0 --severity HIGH,CRITICAL -f table -o trivy-fs-report.txt"
+                archiveArtifacts artifacts: 'trivy-fs-report.txt', allowEmptyArchive: true
             }
         }
-        stage('TRIVY FS SCAN') {
+
+        stage('Docker Build & Push') {
             steps {
-                sh "trivy fs . > trivyfs.txt"
-            }
-        }
-        stage("Docker Build & Push"){
-            steps{
-                script{
-                   withDockerRegistry(credentialsId: 'dockerhub-creds', toolName: 'docker'){   
-                       sh "docker build -t swiggy ."
-                       sh "docker tag SUNILSSAINI139/swiggy:latest "
-                       sh "docker push SUNILSSAINI139/swiggy:latest "
+                script {
+                    withDockerRegistry(credentialsId: 'dockerhub-creds', toolName: 'system-docker') {
+                        sh """
+                            docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
+                            docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
+                        """
                     }
                 }
             }
         }
-        stage("TRIVY"){
-            steps{
-                sh "trivy image SUNILSSAINI139/swiggy:latest > trivy.txt" 
+
+        stage('Trivy Image Vulnerability Scan') {
+            steps {
+                sh "trivy image ${DOCKER_IMAGE}:${DOCKER_TAG} --exit-code 0 --severity HIGH,CRITICAL -f table -o trivy-image-report.txt"
+                archiveArtifacts artifacts: 'trivy-image-report.txt', allowEmptyArchive: true
             }
         }
-        stage('Deploy to container'){
-            steps{
-                sh '''
-                docker rm -f swiggy || true
-                docker run -d --name swiggy -p 3000:3000 SUNILSSAINI139/swiggy:latest
-                '''
+
+        stage('Deploy to Container') {
+            steps {
+                sh """
+                    docker rm -f swiggy || true
+                    docker run -d --name swiggy -p 3000:3000 ${DOCKER_IMAGE}:${DOCKER_TAG}
+                """
             }
+        }
+    }
+
+    post {
+        always {
+            echo "Pipeline execution finished."
+        }
+        success {
+            echo "🎉 Swiggy Application deployed successfully to production container!"
+        }
+        failure {
+            echo "❌ Pipeline failed! Please review stage logs and security reports."
         }
     }
 }
