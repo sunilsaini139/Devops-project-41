@@ -1,0 +1,77 @@
+When I used this application source code  for checking code quality and vulnerabilities ckeck then SonarQube Server analyze the Error like "Coverage of New code is less then 80%" this simply meaning that "Jest" are not preform the src code before check at sonarQube analysis.
+
+Fix this error:-
+1. Verify the package.json file :- from the content of package.json file we can identifies the application dependencies and application fronted code in which code build.
+
+like this application is build in "react=frontend", "node.js=backend"
+
+Update 1:-
+
+here we add one line inside the 
+"script":{
+"test:coverage": "react-scripts test --coverage --watchAll=false --passWithNoTests --ci",
+}
+
+here :-
+--coverage; generate coverage/lcov.info
+--watchAll=false; runs once (required for jenkins/CI)
+--passWithNoTests; prevents CI failure if there are no test file yet
+--ci; disable interactive prompts
+
+Optional but recomended - add Jest coverage config so CSS/images are ignored (prevents low % from non-testable files):
+"jest": {
+  "collectCoverageFrom": [
+    "src/**/*.{js,jsx}",
+    "!src/index.js",
+    "!src/reportWebVitals.js",
+    "!src/**/*.test.{js,jsx}"
+  ],
+  "coveragePathIgnorePatterns": [
+    "/node_modules/",
+    "/src/Photos/"
+  ]
+}
+
+place this at the top level of package.json (siblings of "scripts",not inside it).
+
+Update 2:- 
+Since you have "@testing-library/react", create this file:
+import { render, screen } from '@testing-library/react';
+import App from './App';
+
+test('renders App without crashing', () => {
+  render(<App />);
+  expect(document.body).toBeTruthy();
+});
+
+
+Not if you get warning about the "@testing-library/jest-dom" ,also and "src/setupTests.js"
+import '@testing-library/jest-dom';
+
+Update 3:-
+
+Create file "sonar-project.properities" in project root
+
+sonar.projectKey=swiggy-clone
+sonar.projectName=swiggy-clone
+sonar.projectVersion=0.1.0
+
+# Sources and tests
+sonar.sources=src
+sonar.tests=src
+sonar.test.inclusions=**/*.test.js,**/*.test.jsx,**/*.spec.js,**/*.spec.jsx
+sonar.exclusions=**/node_modules/**,**/*.css,**/Photos/**,**/public/**
+
+# Coverage
+sonar.javascript.lcov.reportPaths=coverage/lcov.info
+
+# Don't count CSS / images / entry point as "to be covered"
+sonar.coverage.exclusions=\
+  src/index.js,\
+  src/**/*.css,\
+  src/Photos/**,\
+  src/**/*.test.js,\
+  src/**/*.test.jsx
+
+
+
