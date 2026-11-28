@@ -88,10 +88,14 @@ pipeline {
             }
         }
 
-        //stage('Deploy to Container') {
-          //  steps {
-                // your existing deploy steps
-           // }
-        //}
+       stage('Deploy to Container') {
+            steps {
+                 sh '''
+		docker rm -f swiggy || true
+		docker run -d --name swiggy -p 3000:3000 ${DOCKER_IMAGE}:latest
+
+		'''
+            }
+        }
     }
 }
