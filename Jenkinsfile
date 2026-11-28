@@ -26,12 +26,6 @@ pipeline {
             }
         }
 
-        stage('Install Dependencies') {
-            steps {
-                sh "npm install"
-            }
-        }
-
         stage('SonarQube Code Analysis') {
             steps {
                 withSonarQubeEnv('sonar-server') {
@@ -54,6 +48,13 @@ pipeline {
                 }
             }
         }
+
+        stage('Install Dependencies') {
+            steps {
+                sh "npm install"
+            }
+        }
+
 
         stage('Trivy Filesystem Security Scan') {
             steps {
