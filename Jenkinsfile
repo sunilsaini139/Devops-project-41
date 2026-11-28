@@ -13,9 +13,10 @@ pipeline {
     }
 
     stages {
-
         stage('Clean Workspace') {
-            steps { cleanWs() }
+            steps { 
+		cleanWs() 
+		}
         }
 
         stage('Checkout from Git') {
@@ -71,7 +72,7 @@ pipeline {
 
         stage('Docker Build & Push') {
             steps {
-                withDockerRegistry(credentialsId: 'dockerhub-creds', toolName: 'system-docker') {
+                withDockerRegistry(credentialsId: 'dockerhub-creds', toolName: 'docker') {
                     sh """
                         docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
                         docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
