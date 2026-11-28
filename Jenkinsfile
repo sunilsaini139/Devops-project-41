@@ -88,10 +88,10 @@ pipeline {
             }
         }
 
-        stage('Deploy to Container') {
-            steps {
+        //stage('Deploy to Container') {
+          //  steps {
                 // your existing deploy steps
-            }
-        }
+           // }
+        //}
     }
 }
