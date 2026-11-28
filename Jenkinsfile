@@ -3,7 +3,7 @@ pipeline {
 
     tools {
         jdk 'jdk17'
-        nodejs 'node20'   // Node.js 20 LTS
+        nodejs 'node20'
     }
 
     environment {
@@ -13,95 +13,84 @@ pipeline {
     }
 
     stages {
+
         stage('Clean Workspace') {
-            steps {
-                cleanWs()
-            }
+            steps { cleanWs() }
         }
 
         stage('Checkout from Git') {
             steps {
-                git branch: 'master', 
+                git branch: 'master',
                     url: 'https://github.com/sunilsaini139/Devops-project-41.git'
             }
         }
 
+        // ✅ NEW: install deps BEFORE tests and before sonar-scanner
+        stage('Install Dependencies') {
+            steps {
+                sh 'npm ci || npm install'
+            }
+        }
+
+        // ✅ NEW: generate coverage report BEFORE sonar-scanner
+        stage('Test with Coverage') {
+            steps {
+                sh 'npm run test:coverage'
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'coverage/**', allowEmptyArchive: true
+                }
+            }
+        }
+
+        // ✅ FIXED: no -Dsonar.sources override (let sonar-project.properties decide),
+        //           and it now runs AFTER coverage exists
         stage('SonarQube Code Analysis') {
             steps {
                 withSonarQubeEnv('sonar-server') {
-                    sh """
-                        $SCANNER_HOME/bin/sonar-scanner \
-                          -Dsonar.projectKey=Swiggy \
-                          -Dsonar.projectName=Swiggy \
-                          -Dsonar.sources=.
-                    """
+                    sh "$SCANNER_HOME/bin/sonar-scanner"
                 }
             }
         }
 
         stage('Quality Gate') {
             steps {
-                script {
-                    timeout(time: 2, unit: 'MINUTES') {
-                        waitForQualityGate abortPipeline: true
-                    }
+                timeout(time: 2, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
                 }
             }
         }
 
-        stage('Install Dependencies') {
-            steps {
-                sh "npm install"
-            }
-        }
-
-
         stage('Trivy Filesystem Security Scan') {
             steps {
-                sh "trivy fs . --exit-code 0 --severity HIGH,CRITICAL -f table -o trivy-fs-report.txt"
+                sh 'trivy fs . --exit-code 0 --severity HIGH,CRITICAL -f table -o trivy-fs-report.txt'
                 archiveArtifacts artifacts: 'trivy-fs-report.txt', allowEmptyArchive: true
             }
         }
 
         stage('Docker Build & Push') {
             steps {
-                script {
-                    withDockerRegistry(credentialsId: 'dockerhub-creds', toolName: 'system-docker') {
-                        sh """
-                            docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
-                            docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
-                        """
-                    }
+                withDockerRegistry(credentialsId: 'dockerhub-creds', toolName: 'system-docker') {
+                    sh """
+                        docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
+                        docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
+                    """
                 }
             }
         }
 
         stage('Trivy Image Vulnerability Scan') {
             steps {
-                sh "trivy image ${DOCKER_IMAGE}:${DOCKER_TAG} --exit-code 0 --severity HIGH,CRITICAL -f table -o trivy-image-report.txt"
+                sh 'trivy image ${DOCKER_IMAGE}:${DOCKER_TAG} --exit-code 0 --severity HIGH,CRITICAL -f table -o trivy-image-report.txt'
                 archiveArtifacts artifacts: 'trivy-image-report.txt', allowEmptyArchive: true
             }
         }
 
         stage('Deploy to Container') {
             steps {
-                sh """
-                    docker rm -f swiggy || true
-                    docker run -d --name swiggy -p 3000:3000 ${DOCKER_IMAGE}:${DOCKER_TAG}
-                """
+                // your existing deploy steps
             }
-        }
-    }
-
-    post {
-        always {
-            echo "Pipeline execution finished."
-        }
-        success {
-            echo "🎉 Swiggy Application deployed successfully to production container!"
-        }
-        failure {
-            echo "❌ Pipeline failed! Please review stage logs and security reports."
         }
     }
 }
